@@ -16,7 +16,14 @@ import termcolor
 import StringIO
 
 from pypy.tool.lib_pypy import import_from_lib_pypy, LIB_ROOT
-from pypy.translator.sandbox.vfs import Dir, File, RealDir, RealFile, FSObject, UID, GID
+
+
+try:
+    from rpython.translator.sandbox.vfs import Dir, File, RealDir, FSObject, RealFile
+    from rpython.translator.sandbox.vfs import UID, GID
+except ImportError:
+    from pypy.translator.sandbox.vfs import Dir, File, RealDir, FSObject, RealFile
+    from pypy.translator.sandbox.vfs import UID, GID
 
 from twisted.internet import reactor, abstract, fdesc, defer, protocol
 from twisted.python import log
@@ -160,6 +167,7 @@ class Sandbox(object):
     arguments = [ '-S', '-u'  ] # '--timeout', str(TIMEOUT)]
     startup_file = '/application/main.py'
     argv0 = '/bin/pypy-c'
+    python_params = []
     virtual_cwd = '/'
     virtual_fd_range = range(3, 50)
     virtual_console_isatty = True
@@ -185,7 +193,7 @@ class Sandbox(object):
     def start(self):
         self.process_protocol = PyPyProcessProtocol(self._process_started, self.message_received, self._process_done)
 
-        reactor.spawnProcess(self.process_protocol, self.executable, args=[self.argv0] + self.arguments + [self.startup_file],
+        reactor.spawnProcess(self.process_protocol, self.executable, args=[self.argv0] + self.arguments + [self.startup_file] + self.python_params,
                                 env=self.virtual_env, path=self.virtual_cwd, usePTY=False)
 
     def _process_started(self):
@@ -194,7 +202,7 @@ class Sandbox(object):
     def _process_done(self, status):
         log.msg('Pypy sandbox process done, status=%s' % status.value)
         self.is_running = False
-        self.done()
+        self.done(status)
 
     def message_received(self, fname, args):
         """
